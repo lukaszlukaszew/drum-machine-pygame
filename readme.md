@@ -25,6 +25,6 @@ If you have it all, just run main.py, and have fun!
 
 Have a great day!
 
-| ![image] |
+| ![image](https://user-images.githubusercontent.com/74509940/184882470-b33ae84b-090d-4b04-bc0e-f110f892b3d7.png) |
 |-----------------------------------------------------------------------------------------------------------------|
-| ![image] |
+| ![image](https://user-images.githubusercontent.com/74509940/184882819-9190465a-a81b-4276-96c2-cee817c98a11.png) |
