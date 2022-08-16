@@ -1,13 +1,10 @@
 """App functions"""
 
 import os
-from os import listdir
-from os.path import isfile, join
+import ast
 
 import pygame
 from pygame import mixer
-
-import ast
 
 
 def start_app():
@@ -51,6 +48,7 @@ def start_app():
         "load_menu": False,
         "beat_name": "",
         "typing": False,
+        "warning": False,
     }
 
     colors = {
@@ -62,6 +60,7 @@ def start_app():
         "blue": (0, 255, 255),
         "dark_gray": (50, 50, 50),
         "dark_green": (0, 100, 0),
+        "red": (255, 0, 0),
     }
 
     screen = pygame.display.set_mode((window["width"], window["height"]), pygame.RESIZABLE)
@@ -94,7 +93,7 @@ def start_app():
         if player["save_menu"]:
             menu_buttons = draw_save_load("save", screen, window, colors, fonts, player)
         elif player["load_menu"]:
-            menu_buttons = draw_save_load("load", screen, window, colors, fonts, player)
+            menu_buttons = draw_save_load("load", screen, window, colors, fonts, player, saved_beats)
 
         if player["beat_changed"]:
             play_notes(samples, clicked, player["active_beat"])
@@ -142,17 +141,33 @@ def start_app():
                     player["load_menu"] = False
                     player["beat_name"] = ""
                     player["typing"] = False
+                    player["warning"] = False
                 elif player["save_menu"]:
                     if menu_buttons["entry"].collidepoint(event.pos):
                         player["typing"] = not player["typing"]
                     elif menu_buttons["save"].collidepoint(event.pos):
-                        save_beat(player, samples, clicked)
+                        save_beat(player, samples, clicked, saved_beats)
                         saved_beats = open_file()
                 elif player["load_menu"]:
+                    keys = sorted(saved_beats.keys())
+
                     if menu_buttons["load"].collidepoint(event.pos):
-                        pass
+                        for name in keys:
+                            if saved_beats[name][4] == 1:
+                                load_beat(samples, clicked, player, saved_beats, name)
+                        # player["warning"] = True
                     elif menu_buttons["delete"].collidepoint(event.pos):
-                        pass
+                        for name in keys:
+                            if saved_beats[name][4] == 1:
+                                saved_beats.pop(name)
+                                save_beat(player, samples, clicked, saved_beats, True)
+                                saved_beats = open_file()
+                    else:
+                        for i, name in enumerate(keys):
+                            if menu_buttons[i].collidepoint(event.pos):
+                                saved_beats[name][4] = 1
+                            else:
+                                saved_beats[name][4] = 0
 
             elif event.type == pygame.TEXTINPUT and player["typing"]:
                 player["beat_name"] += event.text
@@ -192,7 +207,7 @@ def load_sounds():
 
     path = os.getcwd() + "\\sounds\\"
 
-    for i, name in enumerate([f for f in listdir(path) if isfile(join(path, f))]):
+    for i, name in enumerate([f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]):
         samples[i] = [name[:-4].title(), mixer.Sound(path + name), 1]  # name, mixer.Sound, active
 
     pygame.mixer.set_num_channels((len(samples) + 1) * 4)
@@ -218,7 +233,7 @@ def draw_channels(screen, window, colors, fonts, samples):
     for i in range(instruments):
         channel_rect = pygame.rect.Rect(
             (0, ((6 * h + f) // instruments * i)),
-            (w, ((6 * h + f) // instruments ))
+            (w, ((6 * h + f) // instruments))
         )
 
         channels_rects.append(channel_rect)
@@ -306,16 +321,25 @@ def draw_menu(screen, window, colors, fonts, player):
     pygame.draw.rect(screen, colors["white"], [0, 6 * h, w, h], f)
 
     buttons = {
-        "play_pause": pygame.draw.rect(screen, colors["gray"], [2 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, f * 2),
+        "play_pause": pygame.draw.rect(screen, colors["gray"], [2 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0,
+                                       f * 2),
         "bpm": pygame.draw.rect(screen, colors["gray"], [9 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], f, 2 * f),
-        "bpm_add": pygame.draw.rect(screen, colors["gray"], [15 * w // 50, 6 * h + 2 * f, 2 * w // 50, h // 2 - 3 * f], 0, 2 * f),
-        "bpm_sub": pygame.draw.rect(screen, colors["gray"], [15 * w // 50, 6 * h + h // 2 + f,  2 * w // 50, h // 2 - 3 * f], 0, 2 * f),
-        "beats": pygame.draw.rect(screen, colors["gray"], [19 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], f, 2 * f),
-        "beats_add": pygame.draw.rect(screen, colors["gray"], [25 * w // 50, 6 * h + 2 * f, 2 * w // 50, h // 2 - 3 * f], 0, 2 * f),
-        "beats_sub": pygame.draw.rect(screen, colors["gray"], [25 * w // 50, 6 * h + h // 2 + f, 2 * w // 50, h // 2 - 3 * f], 0, 2 * f),
-        "save": pygame.draw.rect(screen, colors["gray"], [29 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f),
-        "load": pygame.draw.rect(screen, colors["gray"], [36 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f),
-        "clear": pygame.draw.rect(screen, colors["gray"], [43 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f)
+        "bpm_add": pygame.draw.rect(screen, colors["gray"], [15 * w // 50, 6 * h + 2 * f, 2 * w // 50, h // 2 - 3 * f],
+                                    0, 2 * f),
+        "bpm_sub": pygame.draw.rect(screen, colors["gray"],
+                                    [15 * w // 50, 6 * h + h // 2 + f, 2 * w // 50, h // 2 - 3 * f], 0, 2 * f),
+        "beats": pygame.draw.rect(screen, colors["gray"], [19 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], f,
+                                  2 * f),
+        "beats_add": pygame.draw.rect(screen, colors["gray"],
+                                      [25 * w // 50, 6 * h + 2 * f, 2 * w // 50, h // 2 - 3 * f], 0, 2 * f),
+        "beats_sub": pygame.draw.rect(screen, colors["gray"],
+                                      [25 * w // 50, 6 * h + h // 2 + f, 2 * w // 50, h // 2 - 3 * f], 0, 2 * f),
+        "save": pygame.draw.rect(screen, colors["gray"], [29 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0,
+                                 2 * f),
+        "load": pygame.draw.rect(screen, colors["gray"], [36 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0,
+                                 2 * f),
+        "clear": pygame.draw.rect(screen, colors["gray"], [43 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0,
+                                  2 * f)
     }
 
     text = {
@@ -323,7 +347,8 @@ def draw_menu(screen, window, colors, fonts, player):
         "bpm": fonts["label"].render(f'{player["bpm"]} BPM', True, colors["white"]),
         "bpm_add": fonts["medium"].render("+ 5", True, colors["white"]),
         "bpm_sub": fonts["medium"].render("- 5", True, colors["white"]),
-        "beats": fonts["label"].render(f'{player["beats"]} beat{"s" * (1 if player["beats"] else 0)}', True, colors["white"]),
+        "beats": fonts["label"].render(f'{player["beats"]} beat{"s" * (1 if player["beats"] else 0)}', True,
+                                       colors["white"]),
         "beats_add": fonts["medium"].render("+ 1", True, colors["white"]),
         "beats_sub": fonts["medium"].render("- 1", True, colors["white"]),
         "save": fonts["label"].render("Save", True, colors["white"]),
@@ -368,40 +393,80 @@ def open_file():
 
     for line in open("saved_beats.txt", "r", encoding="utf-8"):
         name, samples, beats, bpm, clicked = line.split("|||")
-        saved_beats[name] = (
+        saved_beats[name] = [
             ast.literal_eval(samples),
             int(beats),
             int(bpm),
-            ast.literal_eval(clicked)
-        )
+            ast.literal_eval(clicked),
+            0
+        ]
 
     return saved_beats
 
 
-def load_beat():
+def load_beat(samples, clicked, player, saved_beats, beat):
+    """Load chosen beat to the grid"""
 
-    # pokazujemy tylko mozliwe do wczytania
-    pass
+    loaded_chanels = {*saved_beats[beat][0]}
+    current_chanels = {x[0] for x in samples.values()}
+    difference = loaded_chanels.difference(current_chanels)
+
+    if difference:
+        player["warning"] = True
+        player["message"] = ", ".join(difference)
+        return
+
+    if player["beats"] > saved_beats[beat][1]:
+        for _ in range(abs(player["beats"] - saved_beats[beat][1])):
+            for _, click in enumerate(clicked):
+                click.pop()
+    else:
+        for _ in range(abs(player["beats"] - saved_beats[beat][1])):
+            for _, click in enumerate(clicked):
+                click.append(-1)
+
+    player["beats"] = saved_beats[beat][1]
+    player["bpm"] = saved_beats[beat][2]
+    player["active_beat"] = 0
+    player["active_length"] = 0
+    player["beat_changed"] = True
+    player["load_menu"] = False
+
+    for channel in loaded_chanels:
+        for key, value in samples.items():
+            if value[0] == channel:
+                clicked[key] = saved_beats[beat][3][saved_beats[beat][0].index(channel)]
 
 
-def save_beat(player, samples, clicked):
+def save_beat(player, samples, clicked, saved_beats, deleted=False):
     """Saving current beat to file"""
+    if len(saved_beats) >= 10:
+        player["warning"] = True
+        return
 
-    data = f'{player["beat_name"]}' \
-           f'|||{[samples[i][0] for i in sorted(samples.keys())]}' \
-           f'|||{player["beats"]}' \
-           f'|||{player["bpm"]}' \
-           f'|||{clicked}\n'
+    with open("saved_beats.txt", "w", encoding="utf-8") as file:
+        for key, value in saved_beats.items():
+            line = f'{key}' \
+                   f'|||{value[0]}' \
+                   f'|||{value[1]}' \
+                   f'|||{value[2]}' \
+                   f'|||{value[3]}\n'
 
-    file = open("saved_beats.txt", "a", encoding="utf-8")
+            file.write(line)
 
-    if file.write(data) == len(data):
-        file.close()
+        if not deleted:
+            line = f'{player["beat_name"]}' \
+                   f'|||{[samples[i][0] for i in sorted(samples.keys())]}' \
+                   f'|||{player["beats"]}' \
+                   f'|||{player["bpm"]}' \
+                   f'|||{clicked}\n'
+
+            file.write(line)
 
     player["save_menu"], player["beat_name"], player["typing"] = False, "", False
 
 
-def draw_save_load(menu_type, screen, window, colors, fonts, player):
+def draw_save_load(menu_type, screen, window, colors, fonts, player, saved_beats=None):
     """Draw save or load menus"""
 
     # simplyfing calculations
@@ -413,18 +478,15 @@ def draw_save_load(menu_type, screen, window, colors, fonts, player):
     pygame.draw.rect(screen, colors["black"], [0, 0, window["width"], window["height"]])
 
     menu_buttons = {
-        "exit": pygame.draw.rect(screen, colors["gray"], [43 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f),
-        menu_type: pygame.draw.rect(screen, colors["gray"], [36 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f),
+        menu_type: pygame.draw.rect(screen, colors["gray"], [36 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0,
+                                    2 * f),
     }
 
     text = {
-        "exit": fonts["label"].render("Exit", True, colors["white"]),
-        menu_type: fonts["label"].render(menu_type.title(), True, colors["white"])
-
+        menu_type: fonts["label"].render(menu_type.title(), True, colors["white"]),
     }
 
     text_positions = {
-        "exit": (43 * w // 50 + 3 * f, 6 * h + h // 3 + 2 * f),
         menu_type: (36 * w // 50 + 3 * f, 6 * h + h // 3 + 2 * f),
     }
 
@@ -442,15 +504,46 @@ def draw_save_load(menu_type, screen, window, colors, fonts, player):
         text_positions["entry"] = (w // 4 + 4 * f, 7 * h // 2)
 
     elif menu_type == "load":
+        for i, name in enumerate(sorted(saved_beats.keys())):
+            color = [colors["gray"], colors["dark_gray"]][saved_beats[name][4]]
+            menu_buttons[i] = pygame.draw.rect(screen, color,
+                                               [w // 4, 7 * h // 4 + 7 * h // 20 * i, w // 2, 7 * h // 20 - 1], 0,
+                                               2 * f)
+            text[i] = fonts["medium"].render(name, True, colors["white"])
+            text_positions[i] = (w // 4 + 3 * f, 7 * h // 4 + 7 * h // 20 * i + 2 * f)
 
-        menu_buttons["delete"] = pygame.draw.rect(screen, colors["gray"], [29 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f)
+        menu_buttons["delete"] = pygame.draw.rect(screen, colors["gray"],
+                                                  [29 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f)
         text["delete"] = fonts["label"].render("Delete", True, colors["white"])
         text_positions["delete"] = (29 * w // 50 + 3 * f, 6 * h + h // 3 + 2 * f)
 
-        menu_buttons["list"] = pygame.draw.rect(screen, colors["gray"], [w // 4, 7 * h // 4, w // 2, 7 * h // 2], f, 2 * f)
-
         text["load_header"] = fonts["label"].render("LOAD MENU: Please choose beat to load", True, colors["white"])
         text_positions["load_header"] = (h, h)
+
+    if player["warning"]:
+        pygame.draw.rect(screen, colors["red"], [0, 0, window["width"], window["height"]])
+
+        if menu_type == "load":
+            warning = "Loaded sound files don't match with beat you are trying to load!"
+            missing = "Missing instruments: " + player["message"]
+        else:
+            warning = "You can't store more than 10 beats!"
+            missing = ""
+
+        text = {
+            "warning": fonts["label"].render(warning, True, colors["white"]),
+            "missing": fonts["label"].render(missing, True, colors["white"])
+        }
+
+        text_positions = {
+            "warning": (h, h),
+            "missing": (h, 2 * h),
+        }
+
+    menu_buttons["exit"] = pygame.draw.rect(screen, colors["gray"],
+                                            [43 * w // 50, 6 * h + 2 * f, 5 * w // 50, h - 4 * f], 0, 2 * f)
+    text["exit"] = fonts["label"].render("Exit", True, colors["white"])
+    text_positions["exit"] = (43 * w // 50 + 3 * f, 6 * h + h // 3 + 2 * f)
 
     for k, v in text.items():
         screen.blit(v, text_positions[k])
